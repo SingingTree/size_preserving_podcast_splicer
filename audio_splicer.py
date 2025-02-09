@@ -1,15 +1,22 @@
-import uuid
+import os
+import tempfile
+import logging
+
 
 import ffmpeg  # type: ignore
+import mutagen.mp3
+import mutagen.id3
 
-from media import StreamAndProbe
+from media_loader import StreamAndProbe
+
+logger = logging.getLogger(__name__)
 
 def _calculate_target_bitrate(duration_seconds: float, target_size_bytes: int) -> int:
     """
     Calculate target bitrate in bits/sec to achieve desired file size
     Includes some overhead for MP3 headers/metadata.
     """
-    # Assume ~5% overhead for MP3 headers/metadata.
+    # Give ourselves ~5% overhead for MP3 headers/metadata.
     available_bytes = target_size_bytes * 0.95
     # Convert to bits per second (bytes * 8 bits/byte / seconds).
     target_bitrate = int((available_bytes * 8) / duration_seconds)
@@ -18,6 +25,8 @@ def _calculate_target_bitrate(duration_seconds: float, target_size_bytes: int) -
     for rate in reversed(common_bitrates):
         if rate * 1000 <= target_bitrate:
             return rate
+    assert False, "Bad args, target size is too small, fix callers"
+    return 0
 
 def _match_audio_params(
         stream,  # This is an ffmpeg.FilterableStream, but that type is not exposed.
@@ -25,7 +34,7 @@ def _match_audio_params(
         original_channels: int,
         original_format: str,
         splits: int = 1,
-): # As above, we can't type the return type because the ffmpeg module doesn't expose it.
+): # We can't type the return type because the ffmpeg module doesn't expose it.
     """Apply audio parameter matching filters to a stream."""
     converted_stream = (stream
             .filter('aresample', original_rate)
@@ -39,10 +48,11 @@ def _match_audio_params(
 
 
 def insert_add(
+        output_file_name: str,
         original_audio: StreamAndProbe,
         ad: StreamAndProbe,
         target_size_bytes: int,
-):
+) -> bool:
     mid_point = original_audio.duration() / 2
     ad_duration = ad.duration()
     fade_duration = 2
@@ -153,7 +163,8 @@ def insert_add(
 
         # Run the ffmpeg command
         out = ffmpeg.output(
-            concat, f"{uuid.uuid4()}.mp3",
+            concat,
+            output_file_name,
             write_xing=1,
             audio_bitrate=f"{target_bitrate}k",
             # Use VBR mode for better quality at target size
@@ -172,3 +183,94 @@ def insert_add(
     except ffmpeg.Error as e:
         print(f"FFmpeg error occurred: {e}")
         return False
+
+
+def pad_mp3_to_size(filename: str, target_size: int) -> bool:
+    """
+    Pad an MP3 file to exact size using ID3 padding.
+
+    Args:
+        filename: Path to MP3 file
+        target_size: Desired size in bytes
+    Returns:
+        bool: True if padding succeeded, False if file is already too large
+    """
+    current_size = os.path.getsize(filename)
+    logger.debug(f"Current file size: {current_size}")
+
+    if current_size > target_size:
+        logger.error(f"File already larger than target: {current_size} > {target_size}")
+        return False
+
+    # Calculate needed padding
+    padding_needed = target_size - current_size
+    logger.debug(f"Padding needed: {padding_needed}")
+
+    try:
+        # Load or create ID3
+        try:
+            tags = mutagen.id3.ID3(filename)
+            logger.debug(f"Existing tag size: {tags.size}")
+        except:
+            tags = mutagen.id3.ID3()
+            logger.debug("Created new ID3 tag")
+
+        # Remove any existing padding frame
+        if 'TXXX:padding' in tags:
+            tags.pop('TXXX:padding')
+            logger.debug("Removed existing padding frame")
+
+        # Create exact-sized padding
+        # Account for all frame overhead:
+        # 10 bytes for frame header
+        # Length of descriptor ('padding')
+        # 1 byte for encoding
+        # 1 byte for null terminator
+        # Additional ID3 header bytes
+        frame_overhead = (
+                10 +  # Frame header
+                len('padding') +  # Descriptor length
+                1 +  # Encoding byte
+                1 +  # Null terminator
+                7 +  # ID3v2 tag header
+                16 +  # Additional alignment/header bytes
+                2  # Final 2 bytes (possibly frame footer or alignment)
+        )
+        logger.debug(f"Calculated frame overhead: {frame_overhead}")
+
+        padding = b'\x00' * (padding_needed - frame_overhead)
+        logger.debug(f"Created padding of length: {len(padding)}")
+
+        # Add padding frame
+        tags.add(mutagen.id3.TXXX(encoding=0, desc='padding', text=padding.decode('latin1')))
+
+        # Save with minimal additional padding
+        tags.save(filename, padding=lambda x: 0)
+
+        # Verify final size
+        final_size = os.path.getsize(filename)
+        logger.debug(f"Final file size: {final_size}")
+
+        if final_size != target_size:
+            logger.error(f"Failed to achieve target size: got {final_size}, wanted {target_size}")
+            return False
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error padding file: {e}")
+        return False
+
+def insert_ad_and_pad(
+        original_audio: StreamAndProbe,
+        ad: StreamAndProbe,
+        target_size_bytes: int,
+) -> str:
+    # Use a tempfile to ensure we get a unique name. We'll clean it up
+    # manually, as this lets us return such files via FastAPI without
+    # us/tempfile deleting the file from underneath FastAPI.
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
+        print(f"Audio file name: {tmp.name}")
+        insert_add(tmp.name, original_audio, ad, target_size_bytes)
+        pad_mp3_to_size(tmp.name, target_size_bytes)
+        return tmp.name

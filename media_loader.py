@@ -30,7 +30,7 @@ class MediaLoader:
 
     def random_ad(self) -> StreamAndProbe:
         index = random.randint(0, len(self.ads) - 1)
-        return self.ads[0]
+        return self.ads[index]
 
     def music(self) -> StreamAndProbe:
         return self.music_track

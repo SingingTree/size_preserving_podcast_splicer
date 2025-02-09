@@ -1,16 +1,25 @@
-from typing import Union
+import logging
+import sys
+import pathlib
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+
+from starlette.background import BackgroundTask
 
 import audio_splicer
-from media import MediaLoader
+import media_loader
 
-media_loader = MediaLoader()
-audio_splicer.insert_add(
-    media_loader.music_track,
-    media_loader.random_ad(),
-    media_loader.target_bytes_size(),
-)
+root = logging.getLogger()
+root.setLevel(logging.DEBUG)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+
+media_loader = media_loader.MediaLoader()
 
 app = FastAPI()
 
@@ -20,6 +29,16 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@app.get("/pretend_podcast_that_is_actually_music")
+async def pretend_podcast_that_is_actually_music():
+    audio_path_string = audio_splicer.insert_ad_and_pad(
+        media_loader.music_track,
+        media_loader.random_ad(),
+        media_loader.target_bytes_size(),
+    )
+    audio_path = pathlib.Path(audio_path_string)
+    return FileResponse(
+        path=audio_path,
+        filename="your_file.pdf",
+        background=BackgroundTask(lambda: audio_path.unlink(missing_ok=True))
+    )
