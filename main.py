@@ -15,7 +15,7 @@ root.setLevel(logging.DEBUG)
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
@@ -40,5 +40,5 @@ async def pretend_podcast_that_is_actually_music():
     return FileResponse(
         path=audio_path,
         filename="your_file.pdf",
-        background=BackgroundTask(lambda: audio_path.unlink(missing_ok=True))
+        background=BackgroundTask(lambda: audio_path.unlink(missing_ok=True)),
     )

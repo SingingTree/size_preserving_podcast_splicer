@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "black>=25.1.0",
     "mypy>=1.14.1",
     "pydub-stubs>=0.25.1.5",
 ]
