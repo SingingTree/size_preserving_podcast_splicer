@@ -49,7 +49,7 @@ def _match_audio_params(
     return converted_stream.filter_multi_output("asplit", splits)
 
 
-def insert_add(
+def _insert_add(
     output_file_name: str,
     original_audio: StreamAndProbe,
     ad: StreamAndProbe,
@@ -182,7 +182,7 @@ def insert_add(
         return False
 
 
-def pad_mp3_to_size(filename: str, target_size: int) -> bool:
+def _pad_mp3_to_size(filename: str, target_size: int) -> bool:
     """
     Pad an MP3 file to exact size using ID3 tags with known TXXX frame overhead.
     """
@@ -233,26 +233,41 @@ def pad_mp3_to_size(filename: str, target_size: int) -> bool:
         logger.error(f"Error padding file: {e}")
         return False
 
+class AudioSplicer:
+    def __init__(self):
+        # cache maps from (original_file_name, ad_file_name) -> bytes_for_ad_inserted_mp3.
+        self.cache: dict[(str, str), bytes] = {}
 
-def insert_ad_and_pad(
-    original_audio: StreamAndProbe,
-    ad: StreamAndProbe,
-    target_size_bytes: int,
-) -> bytes:
-    # Use a tempfile to ensure we get a unique name. We'll clean it up
-    # manually, as otherwise we run into locking issues.
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-    try:
-        tmp.close()  # Close the file immediately, we only care it's created.
-        logger.debug(f"Audio file name: {tmp.name}")
-        insert_add(tmp.name, original_audio, ad, target_size_bytes)
-        pad_mp3_to_size(tmp.name, target_size_bytes)
-        # We need to open the file since our overwrites won't be reflected if we read from tmp.
-        with open(tmp.name, "rb") as f:
-            return f.read()
-    finally:
-        # Ensure the file is removed.
+    def insert_ad_and_pad(
+        self,
+        original_audio: StreamAndProbe,
+        ad: StreamAndProbe,
+        target_size_bytes: int,
+    ) -> bytes:
+        # Check if we already have the cached media.
+        original_audio_file_name = original_audio.probe["format"]["filename"]
+        ad_file_name = ad.probe["format"]["filename"]
+        if (original_audio_file_name, ad_file_name) in self.cache:
+            logger.debug(f"Using cached media for {original_audio_file_name} and {ad_file_name}")
+            return self.cache[(original_audio_file_name, ad_file_name)]
+
+        # Use a tempfile to ensure we get a unique name. We'll clean it up
+        # manually, as otherwise we run into locking issues.
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
         try:
-            os.unlink(tmp.name)
-        except FileNotFoundError:
-            pass
+            tmp.close()  # Close the file immediately, we only care it's created.
+            logger.debug(f"Audio file name: {tmp.name}")
+            _insert_add(tmp.name, original_audio, ad, target_size_bytes)
+            _pad_mp3_to_size(tmp.name, target_size_bytes)
+            # We need to open the file since our overwrites won't be reflected if we read from tmp.
+            with open(tmp.name, "rb") as f:
+                data = f.read()
+                self.cache[(original_audio_file_name, ad_file_name)] = data
+                logger.debug(f"Cached media for {original_audio_file_name} and {ad_file_name}")
+                return data
+        finally:
+            # Ensure the file is removed.
+            try:
+                os.unlink(tmp.name)
+            except FileNotFoundError:
+                pass

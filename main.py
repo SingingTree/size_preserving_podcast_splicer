@@ -24,6 +24,7 @@ handler.setFormatter(formatter)
 root.addHandler(handler)
 
 loader = media_loader.MediaLoader()
+splicer = audio_splicer.AudioSplicer()
 
 EPISODE_PATH = "/pretend_podcast_that_is_actually_music"
 RSS_PATH = "/rss"
@@ -78,7 +79,7 @@ async def rss(request: Request):
 
 @app.get(EPISODE_PATH)
 async def pretend_podcast_that_is_actually_music():
-    audio_bytes = audio_splicer.insert_ad_and_pad(
+    audio_bytes = splicer.insert_ad_and_pad(
         loader.music_track,
         loader.random_ad(),
         loader.target_bytes_size(),
