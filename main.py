@@ -1,15 +1,14 @@
 import logging
+import os
 import sys
-import pathlib
 from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response
 
-from feedgen.feed import FeedGenerator
+from feedgen.feed import FeedGenerator  # type: ignore
 
-from starlette.background import BackgroundTask
 from starlette.staticfiles import StaticFiles
 
 import audio_splicer
@@ -24,14 +23,16 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
-media_loader = media_loader.MediaLoader()
+loader = media_loader.MediaLoader()
 
 EPISODE_PATH = "/pretend_podcast_that_is_actually_music"
 RSS_PATH = "/rss"
+
 app = FastAPI()
 
 # Mount static files for general static content if needed
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def read_root():
@@ -41,8 +42,8 @@ async def read_root():
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
-            "Expires": "0"
-        }
+            "Expires": "0",
+        },
     )
 
 
@@ -54,8 +55,7 @@ async def rss(request: Request):
         # Ensures proper URL joining
         return urljoin(base_url, path.lstrip("/"))
 
-
-    music_probe_data = media_loader.music_track.probe
+    music_probe_data = loader.music_track.probe
     fg = FeedGenerator()
 
     # Generate the top level podcast.
@@ -70,24 +70,32 @@ async def rss(request: Request):
     fe.title(music_probe_data["format"]["tags"]["title"])
     fe.description(music_probe_data["format"]["tags"]["comment"])
     fe.published(datetime.now(tz=timezone.utc))
-    fe.enclosure(make_url(EPISODE_PATH), media_loader.target_bytes_size(), "audio/mpeg")
+    fe.enclosure(make_url(EPISODE_PATH), loader.target_bytes_size(), "audio/mpeg")
 
     # Generate and return the RSS feed.
-    return Response(
-        content=fg.rss_str(),
-        media_type="application/rss+xml"
-    )
+    return Response(content=fg.rss_str(), media_type="application/rss+xml")
+
 
 @app.get(EPISODE_PATH)
 async def pretend_podcast_that_is_actually_music():
-    audio_path_string = audio_splicer.insert_ad_and_pad(
-        media_loader.music_track,
-        media_loader.random_ad(),
-        media_loader.target_bytes_size(),
+    audio_bytes = audio_splicer.insert_ad_and_pad(
+        loader.music_track,
+        loader.random_ad(),
+        loader.target_bytes_size(),
     )
-    audio_path = pathlib.Path(audio_path_string)
-    return FileResponse(
-        path=audio_path,
-        filename="your_file.mp3",
-        background=BackgroundTask(lambda: audio_path.unlink(missing_ok=True)),
-    )
+
+    music_file_name = os.path.basename(loader.music_track.probe["format"]["filename"])
+    audio_size = len(audio_bytes)
+
+    headers = {
+        # Provide file info.
+        "Content-Disposition": f'attachment; filename="{music_file_name}"',
+        "Content-Length": str(audio_size),
+        # Prevent caching as best we can. This makes it easier to manually get
+        # different versions of the ad by refreshing/re-downloading.
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+
+    return Response(content=audio_bytes, media_type="audio/mpeg", headers=headers)

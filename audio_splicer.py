@@ -238,12 +238,21 @@ def insert_ad_and_pad(
     original_audio: StreamAndProbe,
     ad: StreamAndProbe,
     target_size_bytes: int,
-) -> str:
+) -> bytes:
     # Use a tempfile to ensure we get a unique name. We'll clean it up
-    # manually, as this lets us return such files via FastAPI without
-    # us/tempfile deleting the file from underneath FastAPI.
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-        print(f"Audio file name: {tmp.name}")
+    # manually, as otherwise we run into locking issues.
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    try:
+        tmp.close()  # Close the file immediately, we only care it's created.
+        logger.debug(f"Audio file name: {tmp.name}")
         insert_add(tmp.name, original_audio, ad, target_size_bytes)
         pad_mp3_to_size(tmp.name, target_size_bytes)
-        return tmp.name
+        # We need to open the file since our overwrites won't be reflected if we read from tmp.
+        with open(tmp.name, "rb") as f:
+            return f.read()
+    finally:
+        # Ensure the file is removed.
+        try:
+            os.unlink(tmp.name)
+        except FileNotFoundError:
+            pass
