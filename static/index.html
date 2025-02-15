@@ -1,5 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
+<style>
+    body {
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        line-height: 1.6;
+        color: #333;
+        background-color: #f5f5f5;
+    }
+
+    h1, h2 {
+        color: #2c3e50;
+        margin-top: 2rem;
+    }
+
+    p {
+        margin: 1rem 0;
+    }
+
+    audio {
+        width: 100%;
+        margin: 1.5rem 0;
+    }
+
+    a {
+        color: #3498db;
+        text-decoration: none;
+    }
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+    .container {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,14 +48,33 @@
     <link rel="alternate" type="application/rss+xml" title="My Podcast RSS Feed" href="/rss">
 </head>
 <body>
-    <h1>Welcome to My Podcast</h1>
-    <p>Check out our latest episode:</p>
-    <audio controls>
-        <source src="/pretend_podcast_that_is_actually_music" type="audio/mpeg">
-        Your browser does not support the audio element.
-    </audio>
-    <p>
-        <a href="/rss">Subscribe to the RSS feed</a>
-    </p>
+    <div class="container">
+        <h1>This is a toy site to show a proof of concept about RSS feeds and podcasts</h1>
+        <p>
+            When services insert adds into a podcast, they will consistently fail to reflect the size of these ads in the
+            RSS feed. This makes sense, because they insert the ad when the podcast is downloaded, not when the RSS feed is
+            generated. However, this means that (technically) the RSS feed is incorrect 🤓.
+        </p>
+        <p>
+            This site shows a (hacky) proof of concept that generates a constant sized file, regardless of the ads
+            inserted. This means the size shown in the RSS is correct.
+        </p>
+        <p>
+            The content below dynamically inserts ads (thought your browser may do some caching), but the file served,
+            and the RSS feed will deliver a constant file size.
+        </p>
+        <h2>Here's a pretend podcast!</h2>
+        <p>Check out our latest episode:</p>
+        <audio controls>
+            <source src="/pretend_podcast_that_is_actually_music" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <p>
+            Click <a href="/rss">here</a> for the RSS feed.
+        </p>
+        <p>
+            Click <a href="/pretend_podcast_that_is_actually_music">here</a> to download the dynamically generated mp3.
+        </p>
+    </div>
 </body>
 </html>
