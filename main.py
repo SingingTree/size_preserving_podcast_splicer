@@ -88,6 +88,6 @@ async def pretend_podcast_that_is_actually_music():
     audio_path = pathlib.Path(audio_path_string)
     return FileResponse(
         path=audio_path,
-        filename="your_file.pdf",
+        filename="your_file.mp3",
         background=BackgroundTask(lambda: audio_path.unlink(missing_ok=True)),
     )
