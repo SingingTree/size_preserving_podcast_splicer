@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urljoin
 
 from fastapi import FastAPI, Request
@@ -11,8 +12,7 @@ from feedgen.feed import FeedGenerator  # type: ignore
 
 from starlette.staticfiles import StaticFiles
 
-import audio_splicer
-import media_loader
+from app.size_preserving_podcast_splicer import media_loader, audio_splicer
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -26,19 +26,19 @@ root.addHandler(handler)
 loader = media_loader.MediaLoader()
 splicer = audio_splicer.AudioSplicer()
 
+BASE_DIR = Path(__file__).parent.parent.resolve()
+STATIC_DIR = BASE_DIR / "static"
+
 EPISODE_PATH = "/pretend_podcast_that_is_actually_music"
 RSS_PATH = "/rss"
 
 app = FastAPI()
 
-# Mount static files for general static content if needed
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 @app.get("/")
 async def read_root():
     return FileResponse(
-        "static/index.html",
+        STATIC_DIR / "index.html",
         # Avoid caching so it's easier to get different ad inserts on refresh.
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",

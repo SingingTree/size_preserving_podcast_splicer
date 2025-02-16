@@ -7,7 +7,7 @@ import ffmpeg  # type: ignore
 import mutagen.mp3
 import mutagen.id3
 
-from media_loader import StreamAndProbe
+from app.size_preserving_podcast_splicer.media_loader import StreamAndProbe
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +233,7 @@ def _pad_mp3_to_size(filename: str, target_size: int) -> bool:
         logger.error(f"Error padding file: {e}")
         return False
 
+
 class AudioSplicer:
     def __init__(self):
         # cache maps from (original_file_name, ad_file_name) -> bytes_for_ad_inserted_mp3.
@@ -248,7 +249,9 @@ class AudioSplicer:
         original_audio_file_name = original_audio.probe["format"]["filename"]
         ad_file_name = ad.probe["format"]["filename"]
         if (original_audio_file_name, ad_file_name) in self.cache:
-            logger.debug(f"Using cached media for {original_audio_file_name} and {ad_file_name}")
+            logger.debug(
+                f"Using cached media for {original_audio_file_name} and {ad_file_name}"
+            )
             return self.cache[(original_audio_file_name, ad_file_name)]
 
         # Use a tempfile to ensure we get a unique name. We'll clean it up
@@ -263,7 +266,9 @@ class AudioSplicer:
             with open(tmp.name, "rb") as f:
                 data = f.read()
                 self.cache[(original_audio_file_name, ad_file_name)] = data
-                logger.debug(f"Cached media for {original_audio_file_name} and {ad_file_name}")
+                logger.debug(
+                    f"Cached media for {original_audio_file_name} and {ad_file_name}"
+                )
                 return data
         finally:
             # Ensure the file is removed.

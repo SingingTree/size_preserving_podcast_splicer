@@ -1,7 +1,13 @@
 import os
 import random
+from pathlib import Path
 
 import ffmpeg  # type: ignore
+
+BASE_DIR = Path(__file__).parent.parent.parent.resolve()
+MEDIA_DIR = BASE_DIR / "media"
+ADS_DIR = MEDIA_DIR / "ads"
+MUSIC_DIR = MEDIA_DIR / "music"
 
 
 class StreamAndProbe:
@@ -22,12 +28,12 @@ class StreamAndProbe:
 
 class MediaLoader:
     def __init__(self) -> None:
-        ad_dir = "./media/ads"
-        ad_files = os.listdir(ad_dir)
-        ad_paths = [ad_dir + "/" + ad_file for ad_file in ad_files]
-        self.ads = [StreamAndProbe(ad_path) for ad_path in ad_paths]
+        self.ads = [StreamAndProbe(str(path)) for path in ADS_DIR.glob("*")]
         self.music_track = StreamAndProbe(
-            "./media/music/Kimiko Ishizaka - J.S. Bach- -Open- Goldberg Variations, BWV 988 (Piano) - 15 Variatio 14 a 2 Clav.mp3"
+            str(
+                MUSIC_DIR
+                / "Kimiko Ishizaka - J.S. Bach- -Open- Goldberg Variations, BWV 988 (Piano) - 15 Variatio 14 a 2 Clav.mp3"
+            )
         )
 
     def random_ad(self) -> StreamAndProbe:
