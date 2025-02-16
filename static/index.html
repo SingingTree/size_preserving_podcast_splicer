@@ -38,7 +38,7 @@
         background: white;
         padding: 2rem;
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 </style>
 <head>
@@ -48,33 +48,56 @@
     <link rel="alternate" type="application/rss+xml" title="My Podcast RSS Feed" href="/rss">
 </head>
 <body>
-    <div class="container">
-        <h1>This is a toy site to show a proof of concept about RSS feeds and podcasts</h1>
-        <p>
-            When services insert adds into a podcast, they will consistently fail to reflect the size of these ads in the
-            RSS feed. This makes sense, because they insert the ad when the podcast is downloaded, not when the RSS feed is
-            generated. However, this means that (technically) the RSS feed is incorrect 🤓.
-        </p>
-        <p>
-            This site shows a (hacky) proof of concept that generates a constant sized file, regardless of the ads
-            inserted. This means the size shown in the RSS is correct.
-        </p>
-        <p>
-            The content below dynamically inserts ads (thought your browser may do some caching), but the file served,
-            and the RSS feed will deliver a constant file size.
-        </p>
-        <h2>Here's a pretend podcast!</h2>
-        <p>Check out our latest episode:</p>
-        <audio controls>
-            <source src="/pretend_podcast_that_is_actually_music" type="audio/mpeg">
-            Your browser does not support the audio element.
-        </audio>
-        <p>
-            Click <a href="/rss">here</a> for the RSS feed.
-        </p>
-        <p>
-            Click <a href="/pretend_podcast_that_is_actually_music">here</a> to download the dynamically generated mp3.
-        </p>
-    </div>
+<div class="container">
+    <h1>This is a toy site to show a proof of concept about RSS feeds and podcasts</h1>
+    <p>
+        When services insert adds into a podcast, they will consistently fail to reflect the size of these ads in the
+        RSS feed. This makes sense, because they insert the ad when the podcast is downloaded, not when the RSS feed is
+        generated. However, this means that (technically) the RSS feed is incorrect 🤓.
+    </p>
+    <p>
+        This site shows a (hacky) proof of concept that generates a constant sized file, regardless of the ads
+        inserted. This means the size shown in the RSS is correct.
+    </p>
+    <p>
+        The content below dynamically inserts ads (thought your browser may do some caching), but the file served,
+        and the RSS feed will deliver a constant file size.
+    </p>
+    <h2>Here's a pretend podcast!</h2>
+    <p>Check out our latest episode:</p>
+    <audio id="podcastAudio" controls>
+        <source id="podcastAudioSource" src="/pretend_podcast_that_is_actually_music" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <p>
+        Click <a href="/rss">here</a> for the RSS feed.
+    </p>
+    <p>
+        Click <a href="/pretend_podcast_that_is_actually_music">here</a> to download the dynamically generated mp3.
+    </p>
+</div>
+<script>
+    window.addEventListener("DOMContentLoaded", () => {
+        const podcastAudioSource = document.getElementById("podcastAudioSource");
+        const originalSrc = podcastAudioSource.getAttribute("src");
+        // Add a dummy parameter to try and prevent caching. Normally caching is
+        // fine, but for this code we want to make it easier for folks to get
+        // different versions of the podcast.
+        podcastAudioSource.setAttribute("src", `${originalSrc}?v=${Date.now()}`);
+
+        // Force reload when the src is set
+        const podcastAudio = document.getElementById("podcastAudio");
+        podcastAudio.load();
+
+        // Add event listeners to handle browser back/forward
+        window.addEventListener("pageshow", (event) => {
+            if (event.persisted) {
+                // Page was restored from back/forward cache
+                podcastAudio.setAttribute("src", `${originalSrc}?v=${Date.now()}`);
+                podcastAudio.load();
+            }
+        });
+    });
+</script>
 </body>
 </html>
