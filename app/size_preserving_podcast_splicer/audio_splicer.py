@@ -162,10 +162,12 @@ def _insert_add(
         out = ffmpeg.output(
             concat,
             output_file_name,
-            write_xing=1,
+            acodec='libmp3lame',
+            write_xing='1',
+            id3v2_version='3',
+            write_id3v1='1',
+            movflags='+faststart',
             audio_bitrate=f"{target_bitrate}k",
-            # Use VBR mode for better quality at target size
-            qscale=0,
             # Ensure we don't exceed target bitrate
             maxrate=f"{target_bitrate}k",
             bufsize=f"{target_bitrate * 2}k",
