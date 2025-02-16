@@ -78,22 +78,58 @@ async def rss(request: Request):
 
 
 @app.get(EPISODE_PATH)
-async def pretend_podcast_that_is_actually_music():
+async def pretend_podcast_that_is_actually_music(request: Request):
     audio_bytes = splicer.insert_ad_and_pad(
         loader.music_track,
         loader.random_ad(),
         loader.target_bytes_size(),
     )
 
-    music_file_name = os.path.basename(loader.music_track.probe["format"]["filename"])
     audio_size = len(audio_bytes)
+    music_file_name = os.path.basename(loader.music_track.probe["format"]["filename"])
 
+    # Parse range header if present
+    range_header = request.headers.get("range")
+
+    if range_header:
+        start_byte = 0
+        end_byte = audio_size - 1
+
+        if range_header.startswith("bytes="):
+            range_data = range_header.split("=")[1]
+            ranges = range_data.split("-")
+
+            if ranges[0]:
+                start_byte = int(ranges[0])
+            if ranges[1]:
+                end_byte = int(ranges[1])
+
+        # Get the requested byte range
+        content = audio_bytes[start_byte:end_byte + 1]
+        content_length = len(content)
+
+        headers = {
+            "Content-Disposition": f'attachment; filename="{music_file_name}"',
+            "Content-Length": str(content_length),
+            "Content-Range": f"bytes {start_byte}-{end_byte}/{audio_size}",
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+
+        return Response(
+            content=content,
+            status_code=206,  # Partial Content
+            media_type="audio/mpeg",
+            headers=headers
+        )
+
+    # If no range header, return full content as before
     headers = {
-        # Provide file info.
         "Content-Disposition": f'attachment; filename="{music_file_name}"',
         "Content-Length": str(audio_size),
-        # Prevent caching as best we can. This makes it easier to manually get
-        # different versions of the ad by refreshing/re-downloading.
+        "Accept-Ranges": "bytes",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
         "Expires": "0",
