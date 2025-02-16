@@ -1,0 +1,20 @@
+# fly.toml app configuration file generated for size-preserving-podcast-splicer on 2025-02-16T16:52:39+13:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'size-preserving-podcast-splicer'
+primary_region = 'syd'
+
+[build]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
