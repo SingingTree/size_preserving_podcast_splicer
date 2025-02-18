@@ -162,11 +162,11 @@ def _insert_add(
         out = ffmpeg.output(
             concat,
             output_file_name,
-            acodec='libmp3lame',
-            write_xing='1',
-            id3v2_version='3',
-            write_id3v1='1',
-            movflags='+faststart',
+            acodec="libmp3lame",
+            write_xing="1",
+            id3v2_version="3",
+            write_id3v1="1",
+            movflags="+faststart",
             audio_bitrate=f"{target_bitrate}k",
             # Ensure we don't exceed target bitrate
             maxrate=f"{target_bitrate}k",

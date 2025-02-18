@@ -10,8 +10,6 @@ from fastapi.responses import FileResponse, Response
 
 from feedgen.feed import FeedGenerator  # type: ignore
 
-from starlette.staticfiles import StaticFiles
-
 from app.size_preserving_podcast_splicer import media_loader, audio_splicer
 
 root = logging.getLogger()
@@ -105,7 +103,7 @@ async def pretend_podcast_that_is_actually_music(request: Request):
                 end_byte = int(ranges[1])
 
         # Get the requested byte range
-        content = audio_bytes[start_byte:end_byte + 1]
+        content = audio_bytes[start_byte : end_byte + 1]
         content_length = len(content)
 
         headers = {
@@ -122,7 +120,7 @@ async def pretend_podcast_that_is_actually_music(request: Request):
             content=content,
             status_code=206,  # Partial Content
             media_type="audio/mpeg",
-            headers=headers
+            headers=headers,
         )
 
     # If no range header, return full content as before
