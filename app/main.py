@@ -1,3 +1,22 @@
+"""
+FastAPI application that serves a pretend podcast feed with dynamic ad insertion.
+
+This module provides endpoints for:
+- Serving a static HTML index page
+- Generating an RSS feed for the podcast
+- Streaming audio content with ad insertion and byte range support
+
+The application uses MediaLoader for handling audio files and AudioSplicer for
+inserting ads into the audio stream. All responses are configured to avoid
+caching to ensure different ad insertions on refresh.
+
+Endpoints:
+    GET / - Serves the main HTML page
+    GET /rss - Generates RSS feed for the podcast
+    GET /pretend_podcast_that_is_actually_music - Serves music with dynamic ad
+        insertion and byte range support.
+"""
+
 import logging
 import os
 import sys
@@ -35,6 +54,18 @@ app = FastAPI()
 
 @app.get("/")
 async def read_root():
+    """Serve the main HTML interface for the app.
+
+    Returns a static HTML page that shows a mock podcast audio in an <audio>
+    element along with links to the other endpoints available. The response
+    includes cache-control headers to ensure fresh content on each load.
+
+    Returns:
+        FileResponse: HTML content with no-cache headers:
+            - Cache-Control: no-cache, no-store, must-revalidate
+            - Pragma: no-cache
+            - Expires: 0
+    """
     return FileResponse(
         STATIC_DIR / "index.html",
         # Avoid caching so it's easier to get different ad inserts on refresh.
@@ -48,6 +79,23 @@ async def read_root():
 
 @app.get(RSS_PATH)
 async def rss(request: Request):
+    """Generate a dynamic RSS feed for the pretend podcast.
+
+     Creates an RSS feed containing metadata about the podcast episode,
+    including title, description, and audio enclosure information.
+    The feed is generated dynamically based on the current audio content.
+
+    Args:
+        request (Request): The incoming HTTP request, used to generate
+            absolute URLs for the feed
+
+    Returns:
+        Response: RSS XML content with media type 'application/rss+xml'
+            containing:
+            - Podcast title and description
+            - Episode metadata
+            - Audio enclosure information with correct file size
+    """
     base_url = str(request.base_url).rstrip("/")
 
     def make_url(path: str) -> str:
@@ -77,6 +125,32 @@ async def rss(request: Request):
 
 @app.get(EPISODE_PATH)
 async def pretend_podcast_that_is_actually_music(request: Request):
+    """Stream audio content with dynamically inserted advertisements.
+
+    Serves an audio file with dynamically inserted advertisements, supporting
+    HTTP range requests for partial content delivery. The audio is processed
+    to maintain consistent file size while incorporating ads.
+
+    Args:
+        request (Request): The incoming HTTP request, containing potential
+            'Range' header for partial content requests
+
+    Returns:
+        Response: Audio content with appropriate headers:
+            - For partial content: status 206 with Content-Range header
+            - For full content: status 200
+            - Always includes:
+                - Content-Disposition for filename
+                - Content-Length
+                - Accept-Ranges: bytes
+                - Cache-Control headers preventing caching
+
+    Technical Details:
+        - Supports byte range requests for partial content delivery
+        - Dynamically inserts ads while maintaining target file size
+        - Uses no-cache headers to ensure fresh ad insertion on each request
+        - Returns audio/mpeg content type
+    """
     audio_bytes = splicer.insert_ad_and_pad(
         loader.music_track,
         loader.random_ad(),

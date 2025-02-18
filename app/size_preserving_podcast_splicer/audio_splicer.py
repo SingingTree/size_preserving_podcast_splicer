@@ -1,3 +1,25 @@
+"""Audio Splicing Module for Dynamic Ad Insertion
+
+This module provides functionality for inserting advertisements into audio streams
+while maintaining exact file sizes. It handles audio format conversion, crossfading,
+and precise MP3 padding to ensure consistent file sizes across different ad insertions.
+
+The module uses ffmpeg for audio processing and mutagen for MP3 metadata manipulation.
+It supports caching of processed audio to improve performance for repeated insertions.
+
+Key Components:
+    AudioSplicer: Main class that handles ad insertion and caching
+    _insert_add: Core function for audio splicing with cross-fades
+    _pad_mp3_to_size: Utility for exact MP3 file size control
+    _calculate_target_bitrate: Bitrate calculator for size constraints
+
+Technical Details:
+    - Supports automatic audio format conversion (sample rate, channels, format)
+    - Implements smooth cross-fading at ad insertion points
+    - Uses ID3 tag padding for precise file size control
+    - Maintains an in-memory cache of processed audio
+"""
+
 import os
 import tempfile
 import logging
@@ -13,9 +35,21 @@ logger = logging.getLogger(__name__)
 
 
 def _calculate_target_bitrate(duration_seconds: float, target_size_bytes: int) -> int:
-    """
-    Calculate target bitrate in bits/sec to achieve desired file size
-    Includes some overhead for MP3 headers/metadata.
+    """Calculate the optimal MP3 bitrate to achieve a target file size.
+
+    Determines the highest standard MP3 bitrate that will result in a file size
+    at or below the target size, accounting for MP3 metadata overhead. Note,
+    this overshoots, but is sufficient for this toy project.
+
+    Args:
+        duration_seconds (float): Total duration of the audio in seconds
+        target_size_bytes (int): Desired final file size in bytes
+
+    Returns:
+        int: Selected MP3 bitrate in kbps (32, 40, 48, ..., 320)
+
+    Raises:
+        AssertionError: If target size is too small for the duration
     """
     # Give ourselves ~5% overhead for MP3 headers/metadata.
     available_bytes = target_size_bytes * 0.95
@@ -37,7 +71,21 @@ def _match_audio_params(
     original_format: str,
     splits: int = 1,
 ):  # We can't type the return type because the ffmpeg module doesn't expose it.
-    """Apply audio parameter matching filters to a stream."""
+    """Convert audio stream parameters to match target format.
+
+    Applies ffmpeg filters to ensure audio parameters match the original stream,
+    with optional stream splitting for parallel processing.
+
+    Args:
+        stream: The stream to process -- this is a ffmpeg.FilterableStream but ffmpeg doesn't expose that type.
+        original_rate (int): Target sample rate in Hz
+        original_channels (int): Target number of channels
+        original_format (str): Target sample format (e.g., 's16')
+        splits (int, optional): Number of output streams to create. Defaults to 1.
+
+    Returns:
+        ffmpeg.FilterNode: a node in the filter graph -- this is a type not exposed by ffmpeg
+    """
     converted_stream = stream.filter("aresample", original_rate).filter(
         "aformat",
         sample_rates=original_rate,
@@ -55,6 +103,24 @@ def _insert_add(
     ad: StreamAndProbe,
     target_size_bytes: int,
 ) -> bool:
+    """Insert an advertisement into the middle of an audio file with cross-fading.
+
+    Performs the following steps:
+    1. Splits original audio at midpoint
+    2. Converts ad audio to match original format if needed
+    3. Creates cross-fades between original audio and ad
+    4. Concatenates all segments with proper timing
+    5. Encodes to MP3 with calculated bitrate for size control
+
+    Args:
+        output_file_name (str): Path to write the output MP3
+        original_audio (StreamAndProbe): Original audio content
+        ad (StreamAndProbe): Advertisement to insert
+        target_size_bytes (int): Desired output file size
+
+    Returns:
+        bool: True if insertion succeeded, False otherwise
+    """
     mid_point = original_audio.duration() / 2
     ad_duration = ad.duration()
     fade_duration = 2
@@ -185,8 +251,17 @@ def _insert_add(
 
 
 def _pad_mp3_to_size(filename: str, target_size: int) -> bool:
-    """
-    Pad an MP3 file to exact size using ID3 tags with known TXXX frame overhead.
+    """Pad an MP3 file to an exact size using ID3 metadata.
+
+    Uses custom ID3 TXXX frames with precise overhead calculation to
+    achieve exact file sizes without relying on automatic padding.
+
+    Args:
+        filename (str): Path to the MP3 file to pad
+        target_size (int): Desired final size in bytes
+
+    Returns:
+        bool: True if padding succeeded, False if target size cannot be achieved
     """
     TXXX_FRAME_OVERHEAD = 10  # Bytes of overhead per TXXX frame
 
@@ -237,6 +312,19 @@ def _pad_mp3_to_size(filename: str, target_size: int) -> bool:
 
 
 class AudioSplicer:
+    """Handles audio processing and caching for ad insertion.
+
+    This class manages the process of inserting advertisements into audio streams
+    while maintaining exact file sizes. It caches processed audio to avoid
+    redundant processing of identical combinations.
+
+    Example:
+        ```python
+        splicer = AudioSplicer()
+        result = splicer.insert_ad_and_pad(original, ad, target_size)
+        ```
+    """
+
     def __init__(self):
         # cache maps from (original_file_name, ad_file_name) -> bytes_for_ad_inserted_mp3.
         self.cache: dict[(str, str), bytes] = {}
@@ -247,6 +335,23 @@ class AudioSplicer:
         ad: StreamAndProbe,
         target_size_bytes: int,
     ) -> bytes:
+        """Process audio with ad insertion and exact size control.
+
+        Inserts an advertisement into the original audio, applying cross-fades
+        and ensuring the output matches the target size exactly. Uses caching
+        to improve performance for repeated combinations.
+
+        Args:
+            original_audio (StreamAndProbe): Original audio content
+            ad (StreamAndProbe): Advertisement to insert
+            target_size_bytes (int): Required output file size
+
+        Returns:
+            bytes: Processed audio data matching target size
+
+        Note:
+            Results are cached using original and ad filenames as keys
+        """
         # Check if we already have the cached media.
         original_audio_file_name = original_audio.probe["format"]["filename"]
         ad_file_name = ad.probe["format"]["filename"]
