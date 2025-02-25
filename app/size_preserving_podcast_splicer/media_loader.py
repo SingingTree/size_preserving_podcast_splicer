@@ -78,6 +78,11 @@ class MediaLoader:
     """
 
     def __init__(self) -> None:
+        """Initialize the MediaLoader with advertisements and music track.
+        
+        Loads all audio files from the ads directory and a specific Bach music track
+        from the music directory. The paths are determined relative to the module location.
+        """
         self.ads = [StreamAndProbe(str(path)) for path in ADS_DIR.glob("*")]
         self.music_track = StreamAndProbe(
             str(

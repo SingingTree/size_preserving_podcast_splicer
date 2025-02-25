@@ -81,13 +81,13 @@ async def read_root():
 async def rss(request: Request):
     """Generate a dynamic RSS feed for the pretend podcast.
 
-     Creates an RSS feed containing metadata about the podcast episode,
+    Creates an RSS feed containing metadata about the podcast episode,
     including title, description, and audio enclosure information.
     The feed is generated dynamically based on the current audio content.
 
     Args:
         request (Request): The incoming HTTP request, used to generate
-            absolute URLs for the feed
+            absolute URLs for the feed.
 
     Returns:
         Response: RSS XML content with media type 'application/rss+xml'
@@ -99,7 +99,14 @@ async def rss(request: Request):
     base_url = str(request.base_url).rstrip("/")
 
     def make_url(path: str) -> str:
-        # Ensures proper URL joining
+        """Create absolute URLs by joining the base URL with a path.
+        
+        Args:
+            path (str): The relative path to join with the base URL
+            
+        Returns:
+            str: The absolute URL formed by joining base URL and path
+        """
         return urljoin(base_url, path.lstrip("/"))
 
     music_probe_data = loader.music_track.probe

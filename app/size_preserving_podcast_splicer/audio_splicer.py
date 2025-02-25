@@ -9,7 +9,7 @@ It supports caching of processed audio to improve performance for repeated inser
 
 Key Components:
     AudioSplicer: Main class that handles ad insertion and caching
-    _insert_add: Core function for audio splicing with cross-fades
+    _insert_ad: Core function for audio splicing with cross-fades
     _pad_mp3_to_size: Utility for exact MP3 file size control
     _calculate_target_bitrate: Bitrate calculator for size constraints
 
@@ -70,7 +70,7 @@ def _match_audio_params(
     original_channels: int,
     original_format: str,
     splits: int = 1,
-):  # We can't type the return type because the ffmpeg module doesn't expose it.
+) -> "ffmpeg.FilterNode":  # ffmpeg doesn't expose this type explicitly
     """Convert audio stream parameters to match target format.
 
     Applies ffmpeg filters to ensure audio parameters match the original stream,
@@ -97,7 +97,7 @@ def _match_audio_params(
     return converted_stream.filter_multi_output("asplit", splits)
 
 
-def _insert_add(
+def _insert_ad(
     output_file_name: str,
     original_audio: StreamAndProbe,
     ad: StreamAndProbe,
@@ -239,14 +239,13 @@ def _insert_add(
             bufsize=f"{target_bitrate * 2}k",
         )
 
-        print(out.compile())
-
+        # Run the compilation with overwrites enabled
         out.overwrite_output().run()
 
         return True
 
     except ffmpeg.Error as e:
-        print(f"FFmpeg error occurred: {e}")
+        logger.error(f"FFmpeg error occurred: {e}")
         return False
 
 
@@ -326,8 +325,13 @@ class AudioSplicer:
     """
 
     def __init__(self):
-        # cache maps from (original_file_name, ad_file_name) -> bytes_for_ad_inserted_mp3.
-        self.cache: dict[(str, str), bytes] = {}
+        """Initialize the AudioSplicer with an empty cache.
+        
+        The cache stores processed audio to avoid redundant processing of 
+        identical audio and ad combinations.
+        """
+        # Cache maps from (original_file_name, ad_file_name) -> bytes_for_ad_inserted_mp3
+        self.cache: dict[tuple[str, str], bytes] = {}
 
     def insert_ad_and_pad(
         self,
@@ -367,7 +371,7 @@ class AudioSplicer:
         try:
             tmp.close()  # Close the file immediately, we only care it's created.
             logger.debug(f"Audio file name: {tmp.name}")
-            _insert_add(tmp.name, original_audio, ad, target_size_bytes)
+            _insert_ad(tmp.name, original_audio, ad, target_size_bytes)
             _pad_mp3_to_size(tmp.name, target_size_bytes)
             # We need to open the file since our overwrites won't be reflected if we read from tmp.
             with open(tmp.name, "rb") as f:
